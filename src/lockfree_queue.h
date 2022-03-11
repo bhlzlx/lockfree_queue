@@ -75,7 +75,7 @@ namespace ksgw {
             Node(T&& t) 
                 : _next(Ptr<Node>(nullptr, 0))
                 , _data(std::move(t))
-                , _ref(2){
+                , _ref(1){
             }
             std::atomic<Ptr<Node>>& next() {
                 return _next;
