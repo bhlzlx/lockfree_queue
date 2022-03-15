@@ -20,7 +20,7 @@ struct TaskConext {
 
 size_t produce_proc(TaskConext* context, size_t id, Queue<uint64_t>& queue){
     uint64_t i = 0;
-    while(i<120000) {
+    while(i<1000000) {
         queue.push(std::move(i));
         context->producer_info[id].counter+=i;
         ++i;
@@ -30,7 +30,7 @@ size_t produce_proc(TaskConext* context, size_t id, Queue<uint64_t>& queue){
 
 size_t consumer_proc(TaskConext* context, size_t id, Queue<uint64_t>& queue){
     uint64_t i = 0;
-    while(i<120000) {
+    while(i<1000000) {
         uint64_t data;
         if(queue.pop(data) == 0) {
             context->consumer_info[id].sum+=data;
