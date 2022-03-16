@@ -10,3 +10,5 @@ PRIVATE
     # lockfreequeue.cpp
     # lockfreequeue.h
 )
+
+target_compile_features( main PRIVATE cxx_std_11 )

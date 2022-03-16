@@ -5,6 +5,8 @@
 
 namespace ksgw {
 
+    constexpr std::memory_order load_order = std::memory_order::memory_order_relaxed;
+    constexpr std::memory_order write_order = std::memory_order::memory_order_relaxed;
     namespace internal {
 
         constexpr uint32_t CacheLineSize = 64;
@@ -81,10 +83,10 @@ namespace ksgw {
                 return _next;
             }
             T data() {
-                return _data.load(std::memory_order::memory_order_acquire);
+                return _data.load(load_order);
             }
             void release() {
-                size_t ref = _ref.fetch_sub(1, std::memory_order::memory_order_acquire);
+                size_t ref = _ref.fetch_sub(1, load_order);
                 assert(ref < 2);
                 if(!ref) {
                     delete this;
@@ -103,8 +105,8 @@ namespace ksgw {
         template<class T>
         class Queue {
         private:
-            alignas(CacheLineSize) std::atomic<Ptr<Node<T>>> _head;
-            alignas(CacheLineSize) std::atomic<Ptr<Node<T>>> _tail;
+            alignas(internal::CacheLineSize) std::atomic<Ptr<Node<T>>> _head;
+            alignas(internal::CacheLineSize) std::atomic<Ptr<Node<T>>> _tail;
         public:
             Queue() {
                 Node<T>* node = new Node<T>(T());
@@ -118,32 +120,32 @@ namespace ksgw {
             ~Queue() {
                 while(true) {
                     T t;
-                    if(!pop(t) == 0) {
+                    if(!(pop(t) == 0)) {
                         break;
                     }
                 }
-                _head.load(std::memory_order::memory_order_acquire).ptr()->release();
+                _head.load(load_order).ptr()->release();
             }
 
             void push(T&& t) {
                 Ptr<Node<T>> node_ptr(new Node<T>(std::move(t)), 0);
                 while(true) {
-                    Ptr<Node<T>> tail = _tail.load();
-                    Ptr<Node<T>> next = tail.ptr()->next().load();
-                    Ptr<Node<T>> tail2 = _tail.load();
+                    Ptr<Node<T>> tail = _tail.load(load_order);
+                    Ptr<Node<T>> next = tail.ptr()->next().load(load_order);
+                    Ptr<Node<T>> tail2 = _tail.load(load_order);
                     if(!tail.addrEqual(tail2)) {
                         continue;
                     }
                     if(!next.isNull()) {
-                        _tail.compare_exchange_strong(tail, next, std::memory_order::memory_order_release);
+                        _tail.compare_exchange_strong(tail, next, write_order);
                         continue;
                     }
                     node_ptr.setVer(next.ver() + 1);
-                    node_ptr.ptr()->next().store(Ptr<Node<T>>(nullptr, next.ver()+1), std::memory_order::memory_order_release);
-                    if(!tail.ptr()->next().compare_exchange_strong(next, node_ptr, std::memory_order::memory_order_release)) {
+                    node_ptr.ptr()->next().store(Ptr<Node<T>>(nullptr, next.ver()+1), write_order);
+                    if(!tail.ptr()->next().compare_exchange_strong(next, node_ptr, write_order)) {
                         continue;
                     }
-                    auto rst = _tail.compare_exchange_strong(tail, node_ptr, std::memory_order::memory_order_release);
+                    auto rst = _tail.compare_exchange_strong(tail, node_ptr, write_order);
                     // 实际上，这里的rst是可能会失败的，因为上边next非空也可能会改next值
                     // assert(rst);
                     break;
@@ -152,11 +154,11 @@ namespace ksgw {
 
             int pop(T& t) {
                 while(true) {
-                    Ptr<Node<T>> head = _head.load();
-                    Ptr<Node<T>> tail = _tail.load();
+                    Ptr<Node<T>> head = _head.load(load_order);
+                    Ptr<Node<T>> tail = _tail.load(load_order);
                     Node<T>* head_ptr = head.ptr();
-                    Ptr<Node<T>> next = head_ptr->next().load();
-                    auto head2 = _head.load();
+                    Ptr<Node<T>> next = head_ptr->next().load(load_order);
+                    auto head2 = _head.load(load_order);
                     if(!head.addrEqual(head2)) {
                         continue;
                     }
@@ -164,7 +166,7 @@ namespace ksgw {
                         return -1;
                     }
                     next.upgrade();
-                    if(_head.compare_exchange_strong(head, next, std::memory_order::memory_order_release)) {
+                    if(_head.compare_exchange_strong(head, next, write_order)) {
                         Node<T>* next_ptr = next.ptr();
                         t = next_ptr->data();
                         next_ptr->release();

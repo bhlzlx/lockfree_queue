@@ -1,4 +1,7 @@
 #include <thread>
+#include <chrono>
+
+using time_stamp = decltype(std::chrono::steady_clock::now());
 
 #include "src/lockfree_queue.h"
 
@@ -18,9 +21,10 @@ struct TaskConext {
     consumer_t consumer_info[8];
 };
 
+constexpr uint64_t count_per_thread = 1000000ULL;
 size_t produce_proc(TaskConext* context, size_t id, Queue<uint64_t>& queue){
     uint64_t i = 0;
-    while(i<1000000) {
+    while(i<count_per_thread) {
         queue.push(std::move(i));
         context->producer_info[id].counter+=i;
         ++i;
@@ -30,7 +34,7 @@ size_t produce_proc(TaskConext* context, size_t id, Queue<uint64_t>& queue){
 
 size_t consumer_proc(TaskConext* context, size_t id, Queue<uint64_t>& queue){
     uint64_t i = 0;
-    while(i<1000000) {
+    while(i<count_per_thread) {
         uint64_t data;
         if(queue.pop(data) == 0) {
             context->consumer_info[id].sum+=data;
@@ -66,11 +70,15 @@ int main() {
         std::thread(consumer_proc, &taskContext, 7, std::ref(q))
     };
 
+    time_stamp stamp = std::chrono::steady_clock::now();
     for(auto& t : producer_threads) {
         t.join();
     }
     for(auto& t : consumer_threads) {
         t.join();
     }
+    auto diff = std::chrono::steady_clock::now() - stamp;
+    diff.count();
+    printf("total : %llu, cost %llu ns", count_per_thread*8, diff.count());
 	return 0;
 }
