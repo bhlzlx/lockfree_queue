@@ -5,8 +5,9 @@
 
 namespace ksgw {
 
-    constexpr std::memory_order load_order = std::memory_order::memory_order_relaxed;
-    constexpr std::memory_order write_order = std::memory_order::memory_order_relaxed;
+    constexpr std::memory_order load_order = std::memory_order::memory_order_acquire;
+    constexpr std::memory_order write_order = std::memory_order::memory_order_release;
+
     namespace internal {
 
         constexpr uint32_t CacheLineSize = 64;
